@@ -50,6 +50,7 @@ int main() {
             perror("Error al aceptar la conexión");
             exit(EXIT_FAILURE);
         }
+        printf("Conexión aceptada\n");
         
         // Manejar la conexión con un nuevo hilo o proceso
         // Implementa aquí la lógica para manejar el juego
