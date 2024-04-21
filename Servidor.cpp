@@ -61,7 +61,10 @@ public:
             std::cout << "Conexión aceptada\n";
 
             // Manejar la conexión con un nuevo hilo o proceso
+
             // Implementa aquí la lógica para manejar el juego
+            //recibir mensaje y enviar mensaje de vuelta con el movimiento del servidor
+            
 
             close(newSocket); // Cerrar el socket para esta conexión
         }
