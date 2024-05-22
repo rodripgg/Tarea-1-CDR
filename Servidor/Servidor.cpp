@@ -62,7 +62,7 @@ public:
 
             // Manejar la conexión con un nuevo hilo o proceso
 
-            // Implementa aquí la lógica para manejar el juego
+            // Implementar aquí la lógica para manejar el juego
             //recibir mensaje y enviar mensaje de vuelta con el movimiento del servidor
             
 
