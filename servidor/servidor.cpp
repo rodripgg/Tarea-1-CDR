@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <thread>
 
 #define BUFFER_SIZE 1024
 
@@ -48,7 +49,29 @@ public:
         }
     }//fin TCPServer
 
-    //
+    //Maneja la comunicacion con un cliente
+    void handleClient(int clientSocket) 
+    {
+        char buffer[BUFFER_SIZE] = {0};
+        int bytesRead;
+        
+        // Recibir y enviar mensajes
+        while ((bytesRead = read(clientSocket, buffer, BUFFER_SIZE)) > 0) {
+            std::cout << "Mensaje recibido: " << buffer << std::endl;
+            send(clientSocket, buffer, bytesRead, 0);
+            memset(buffer, 0, BUFFER_SIZE);
+        }
+
+        if (bytesRead == 0) {
+            std::cout << "Cliente desconectado\n";
+        } else if (bytesRead < 0) {
+            perror("Error al leer del cliente");
+        }
+
+        close(clientSocket);
+    }//fin handleClient
+
+    //Queda a la escucha
     void acceptConnections() 
     {
         while (true) {
@@ -56,22 +79,25 @@ public:
             struct sockaddr_in clientAddress;
             socklen_t clientAddrlen = sizeof(clientAddress);
 
-            // Aceptar la conexión entrante
+            // Aceptar la conexion entrante
             if ((newSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &clientAddrlen)) < 0) {
-                perror("Error al aceptar la conexión");
+                perror("Error al aceptar la conexion");
                 exit(EXIT_FAILURE);
             }
-            std::cout << "Conexión aceptada\n";
+            std::cout << "Conexion aceptada\n";
 
-            // Manejar la conexión con un nuevo hilo o proceso
+            // Manejar la conexion con un nuevo hilo o proceso (Diego)
+            std::thread(&TCPServer::handleClient, this, newSocket).detach();
 
 
-
-            // Implementar aquí la lógica para manejar el juego
+            // Implementar aquí la lógica para manejar el juego (Parra)
+            
             // recibir mensaje y enviar mensaje de vuelta con el movimiento del servidor
             
 
             close(newSocket); // Cerrar el socket para esta conexión
+            
+            std::cout << "socket cerrado\n";
         }
     }//Fin acceptConnections()
 
