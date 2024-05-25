@@ -16,7 +16,9 @@ private:
     int addrlen = sizeof(address);
 
 public:
-    TCPServer(int port) {
+    //
+    TCPServer(int port) 
+    {
         // Crear socket del servidor
         if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
             perror("Error al crear el socket del servidor");
@@ -44,9 +46,11 @@ public:
             perror("Error al escuchar conexiones entrantes");
             exit(EXIT_FAILURE);
         }
-    }
+    }//fin TCPServer
 
-    void acceptConnections() {
+    //
+    void acceptConnections() 
+    {
         while (true) {
             int newSocket;
             struct sockaddr_in clientAddress;
@@ -61,28 +65,37 @@ public:
 
             // Manejar la conexión con un nuevo hilo o proceso
 
+
+
             // Implementar aquí la lógica para manejar el juego
             // recibir mensaje y enviar mensaje de vuelta con el movimiento del servidor
             
 
             close(newSocket); // Cerrar el socket para esta conexión
         }
-    }
+    }//Fin acceptConnections()
 
+    //cerrar conexión
     ~TCPServer() {
         close(serverSocket);
     }
 };
 
-int main(int argc, char *argv[]) {
+
+//Esto ejecuta el servidor
+int main(int argc, char *argv[]) //   ./ servidor <puerto>
+{
+    //Si no hay la cantidad de argumentos correcto retornar error
     if (argc != 2) {
         std::cerr << "Uso: " << argv[0] << " <puerto>\n";
         return EXIT_FAILURE;
     }
+    
+    int port = std::atoi(argv[1]); //Convertir <puerto> en integer
 
-    int port = std::atoi(argv[1]);
+    TCPServer server(port); //Abrir conexion
+    std::cout << "Conexión abierta\n";
 
-    TCPServer server(port);
     server.acceptConnections();
     return 0;
 }
