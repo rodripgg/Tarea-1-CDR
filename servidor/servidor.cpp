@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <thread>
 
 #define BUFFER_SIZE 1024
 
@@ -47,30 +48,59 @@ public:
             perror("Error al escuchar conexiones entrantes");
             exit(EXIT_FAILURE);
         }
-    }
+    }//fin TCPServer
 
-    void acceptConnections() {
+    //Maneja la comunicacion con un cliente
+    void handleClient(int clientSocket) 
+    {
+        char buffer[BUFFER_SIZE] = {0};
+        int bytesRead;
+        
+        // Recibir y enviar mensajes
+        while ((bytesRead = read(clientSocket, buffer, BUFFER_SIZE)) > 0) {
+            std::cout << "Mensaje recibido: " << buffer << std::endl;
+            send(clientSocket, buffer, bytesRead, 0);
+            memset(buffer, 0, BUFFER_SIZE);
+        }
+
+        if (bytesRead == 0) {
+            std::cout << "Cliente desconectado\n";
+        } else if (bytesRead < 0) {
+            perror("Error al leer del cliente");
+        }
+
+        close(clientSocket);
+    }//fin handleClient
+
+    //Queda a la escucha
+    void acceptConnections() 
+    {
         while (true) {
             int newSocket;
             struct sockaddr_in clientAddress;
             socklen_t clientAddrlen = sizeof(clientAddress);
 
-            // Aceptar la conexión entrante
+            // Aceptar la conexion entrante
             if ((newSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &clientAddrlen)) < 0) {
-                perror("Error al aceptar la conexión");
+                perror("Error al aceptar la conexion");
                 exit(EXIT_FAILURE);
             }
-            std::cout << "Conexión aceptada\n";
+            std::cout << "Conexion aceptada\n";
 
-            // Manejar la conexión con un nuevo hilo o proceso
+            // Manejar la conexion con un nuevo hilo o proceso (Diego)
+            std::thread(&TCPServer::handleClient, this, newSocket).detach();
+
 
             // Lógica del juego
             game(newSocket);
 
             close(newSocket); // Cerrar el socket para esta conexión
+            
+            std::cout << "socket cerrado\n";
         }
-    }
+    }//Fin acceptConnections()
 
+    //cerrar conexión
     ~TCPServer() {
         close(serverSocket);
     }
@@ -157,15 +187,102 @@ int TCPServer::game(int newSocket) {
     return 0;
 }
 
-int main(int argc, char *argv[]) {
+int TCPServer::game(int newSocket) {
+    // Definir el tablero
+    char board[6][7] = {{' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                        {' ', ' ', ' ', ' ', ' ', ' ', ' '}};
+
+    // Elección aleatoria para definir quién inicia
+    srand(time(0)); // Inicializar la semilla aleatoria
+    bool serverStarts = rand() % 2;
+    if (serverStarts) {
+        std::cout << "El servidor inicia\n";
+        // Lógica para que el servidor haga el primer movimiento
+        int serverColumn = rand() % 7;
+
+        for (int i = 5; i >= 0; --i) {
+            if (board[i][serverColumn] == ' ') {
+                board[i][serverColumn] = 'O'; // 'O' representa la ficha del servidor
+                break;
+            }
+        }
+        char message[3];
+        snprintf(message, sizeof(message), "%d", serverColumn);
+        send(newSocket, message, strlen(message), 0);
+    } else {
+        std::cout << "El cliente inicia\n";
+    }
+
+    // Bucle principal para interactuar con el cliente
+    while (true) {
+        char buffer[BUFFER_SIZE] = {0}; // Inicializar el buffer
+        int valread = recv(newSocket, buffer, BUFFER_SIZE, 0); // Recibir mensaje del cliente
+        if (valread > 0) {
+            int clientColumn = atoi(buffer);
+            std::cout << "Movimiento del cliente en columna: " << clientColumn + 1 << std::endl;
+
+            // Colocar la ficha del cliente en la columna seleccionada solo si no está llena
+            for (int i = 5; i >= 0; --i) {
+                if (board[i][clientColumn] == ' ') {
+                    board[i][clientColumn] = 'X'; // 'X' representa la ficha del cliente
+                    break;
+                }
+            }
+
+            // Procesar el movimiento del servidor
+            int serverColumn;
+            while (true) {
+                serverColumn = rand() % 7;
+                bool placed = false;
+                for (int i = 5; i >= 0; --i) {
+                    if (board[i][serverColumn] == ' ') {
+                        board[i][serverColumn] = 'O'; // 'O' representa la ficha del servidor
+                        placed = true;
+                        break;
+                    }
+                }
+                if (placed) break;
+            }
+
+            // Enviar el movimiento del servidor de vuelta al cliente
+            char response[3];
+            snprintf(response, sizeof(response), "%d", serverColumn);
+            send(newSocket, response, strlen(response), 0);
+            std::cout << "Movimiento del servidor en columna: " << serverColumn + 1 << std::endl;
+        } else if (valread == 0) {
+            // El cliente ha cerrado la conexión
+            std::cout << "Cliente desconectado\n";
+            break;
+        } else {
+            // Error al recibir el mensaje
+            perror("Error al recibir el mensaje del cliente");
+            break;
+        }
+    }
+
+    // Lógica del juego
+    return 0;
+}
+
+
+//Esto ejecuta el servidor
+int main(int argc, char *argv[]) //   ./ servidor <puerto>
+{
+    //Si no hay la cantidad de argumentos correcto retornar error
     if (argc != 2) {
         std::cerr << "Uso: " << argv[0] << " <puerto>\n";
         return EXIT_FAILURE;
     }
+    
+    int port = std::atoi(argv[1]); //Convertir <puerto> en integer
 
-    int port = std::atoi(argv[1]);
+    TCPServer server(port); //Abrir conexion
+    std::cout << "Conexión abierta\n";
 
-    TCPServer server(port);
     server.acceptConnections();
 
     return 0;
