@@ -64,7 +64,7 @@ int main(int argc, char const *argv[]) {
 
     TCPClient client(argv[1], atoi(argv[2]));
 
-    char board[6][7]; // Representación del tablero
+    char board[6][7]; // Representación del tablero del juego
 
     // Inicializar el tablero con espacios en blanco
     for (int i = 0; i < 6; ++i) {
@@ -85,9 +85,9 @@ int main(int argc, char const *argv[]) {
         column--; // Ajustar el índice de la columna
 
         // Colocar la ficha del jugador en la columna seleccionada solo si no está llena
-        for(int i = 5; i >= 0; i--) {
-            if(board[i][column] == ' ') {
-                board[i][column] = 'X';
+        for (int i = 5; i >= 0; --i) {
+            if (board[i][column] == ' ') {
+                board[i][column] = 'X'; // 'X' representa la ficha del jugador
                 break;
             }
         }
@@ -97,11 +97,19 @@ int main(int argc, char const *argv[]) {
         snprintf(message, sizeof(message), "%d", column);
         client.sendMessage(message);
 
-        // Recibir la actualización del tablero del servidor
-        char buffer[BUFFER_SIZE];
+        // Recibir el movimiento del servidor
+        char buffer[BUFFER_SIZE] = {0};
         client.receive(buffer, BUFFER_SIZE);
+        int serverColumn = atoi(buffer);
+        std::cout << "Movimiento del servidor en columna: " << serverColumn + 1 << std::endl;
 
-        
+        // Colocar la ficha del servidor en la columna seleccionada solo si no está llena
+        for (int i = 5; i >= 0; --i) {
+            if (board[i][serverColumn] == ' ') {
+                board[i][serverColumn] = 'O'; // 'O' representa la ficha del servidor
+                break;
+            }
+        }
     }
 
     return 0;
