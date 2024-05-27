@@ -56,6 +56,8 @@ void printBoard(char board[6][7]) {
     }
 }
 
+
+
 int main(int argc, char const *argv[]) {
     if (argc != 3) {
         std::cerr << "Uso: " << argv[0] << " <dirección IP del servidor> <puerto>" << std::endl;
@@ -64,25 +66,68 @@ int main(int argc, char const *argv[]) {
 
     TCPClient client(argv[1], atoi(argv[2]));
 
-    char board[6][7]; // Representación del tablero del juego
 
-    // Inicializar el tablero con espacios en blanco
-    for (int i = 0; i < 6; ++i) {
-        for (int j = 0; j < 7; ++j) {
-            board[i][j] = ' ';
-        }
-    }
-
+    // Definir el tablero
+    char board[6][7] = {{' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                        {' ', ' ', ' ', ' ', ' ', ' ', ' '}};
+                        
     // Bucle principal del juego
     while (true) {
-        // Mostrar el tablero actualizado
-        printBoard(board);
+        // Recibir el movimiento del servidor
+        char buffer[BUFFER_SIZE] = {0};
+        client.receive(buffer, BUFFER_SIZE);
+        int serverColumn = atoi(buffer);   
 
-        // Solicitar al usuario que ingrese su movimiento
-        int column;
-        std::cout << "Ingrese el número de columna para colocar su ficha (1-7): ";
-        std::cin >> column;
-        column--; // Ajustar el índice de la columna
+
+        if (serverColumn == 8) {
+            std::cout << "Tu comienzas la partida" << std::endl;
+        } else if (serverColumn == 9) {
+            std::cout << "¡Ganaste!" << std::endl;
+            break;
+        } else if (serverColumn == 7) {
+            std::cout << "¡Perdiste!" << std::endl;
+            break;
+        }else{
+            std::cout << "Movimiento del servidor en columna: " << serverColumn + 1 << std::endl;
+                    // Colocar la ficha del servidor en la columna seleccionada solo si no está llena
+            for (int i = 5; i >= 0; --i) {
+                if (board[i][serverColumn] == ' ') {
+                    board[i][serverColumn] = 'O'; // 'O' representa la ficha del servidor
+                    break;
+                }
+            }// Mostrar el tablero actualizado
+            printBoard(board);  
+        }
+
+int column;
+bool validInput = false;
+
+// Solicitar al usuario que ingrese su movimiento
+do {
+    std::cout << "Ingrese el número de columna para colocar su ficha (1-7): ";
+    if (std::cin >> column) {
+        // Verificar si la entrada es un número y está en el rango válido
+        if (column >= 1 && column <= 7) {
+            validInput = true;
+        } else {
+            std::cout << "Número de columna inválido. Debe estar entre 1 y 7." << std::endl;
+        }
+    } else {
+        // Limpiar el buffer de entrada
+        std::cin.clear();
+        while (std::cin.get() != '\n') continue; // Descartar caracteres adicionales en el buffer
+        std::cout << "Entrada inválida. Debe ingresar un número." << std::endl;
+
+    }
+} while (!validInput);
+
+column--; // Ajustar el índice de la columna
+
+
 
         // Colocar la ficha del jugador en la columna seleccionada solo si no está llena
         for (int i = 5; i >= 0; --i) {
@@ -96,20 +141,6 @@ int main(int argc, char const *argv[]) {
         char message[3];
         snprintf(message, sizeof(message), "%d", column);
         client.sendMessage(message);
-
-        // Recibir el movimiento del servidor
-        char buffer[BUFFER_SIZE] = {0};
-        client.receive(buffer, BUFFER_SIZE);
-        int serverColumn = atoi(buffer);
-        std::cout << "Movimiento del servidor en columna: " << serverColumn + 1 << std::endl;
-
-        // Colocar la ficha del servidor en la columna seleccionada solo si no está llena
-        for (int i = 5; i >= 0; --i) {
-            if (board[i][serverColumn] == ' ') {
-                board[i][serverColumn] = 'O'; // 'O' representa la ficha del servidor
-                break;
-            }
-        }
     }
 
     return 0;
