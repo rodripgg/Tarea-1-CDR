@@ -69,7 +69,7 @@ public:
             perror("Error al leer del cliente");
         }
 
-        close(clientSocket);
+        //close(clientSocket);
     }//fin handleClient
 
     //Queda a la escucha
@@ -106,86 +106,6 @@ public:
     }
 };
 
-int TCPServer::game(int newSocket) {
-    // Definir el tablero
-    char board[6][7] = {{' ', ' ', ' ', ' ', ' ', ' ', ' '},
-                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
-                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
-                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
-                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
-                        {' ', ' ', ' ', ' ', ' ', ' ', ' '}};
-
-    // Elección aleatoria para definir quién inicia
-    srand(time(0)); // Inicializar la semilla aleatoria
-    bool serverStarts = rand() % 2;
-    if (serverStarts) {
-        std::cout << "El servidor inicia\n";
-        // Lógica para que el servidor haga el primer movimiento
-        int serverColumn = rand() % 7;
-
-        for (int i = 5; i >= 0; --i) {
-            if (board[i][serverColumn] == ' ') {
-                board[i][serverColumn] = 'O'; // 'O' representa la ficha del servidor
-                break;
-            }
-        }
-        char message[3];
-        snprintf(message, sizeof(message), "%d", serverColumn);
-        send(newSocket, message, strlen(message), 0);
-    } else {
-        std::cout << "El cliente inicia\n";
-    }
-
-    // Bucle principal para interactuar con el cliente
-    while (true) {
-        char buffer[BUFFER_SIZE] = {0}; // Inicializar el buffer
-        int valread = recv(newSocket, buffer, BUFFER_SIZE, 0); // Recibir mensaje del cliente
-        if (valread > 0) {
-            int clientColumn = atoi(buffer);
-            std::cout << "Movimiento del cliente en columna: " << clientColumn + 1 << std::endl;
-
-            // Colocar la ficha del cliente en la columna seleccionada solo si no está llena
-            for (int i = 5; i >= 0; --i) {
-                if (board[i][clientColumn] == ' ') {
-                    board[i][clientColumn] = 'X'; // 'X' representa la ficha del cliente
-                    break;
-                }
-            }
-
-            // Procesar el movimiento del servidor
-            int serverColumn;
-            while (true) {
-                serverColumn = rand() % 7;
-                bool placed = false;
-                for (int i = 5; i >= 0; --i) {
-                    if (board[i][serverColumn] == ' ') {
-                        board[i][serverColumn] = 'O'; // 'O' representa la ficha del servidor
-                        placed = true;
-                        break;
-                    }
-                }
-                if (placed) break;
-            }
-
-            // Enviar el movimiento del servidor de vuelta al cliente
-            char response[3];
-            snprintf(response, sizeof(response), "%d", serverColumn);
-            send(newSocket, response, strlen(response), 0);
-            std::cout << "Movimiento del servidor en columna: " << serverColumn + 1 << std::endl;
-        } else if (valread == 0) {
-            // El cliente ha cerrado la conexión
-            std::cout << "Cliente desconectado\n";
-            break;
-        } else {
-            // Error al recibir el mensaje
-            perror("Error al recibir el mensaje del cliente");
-            break;
-        }
-    }
-
-    // Lógica del juego
-    return 0;
-}
 
 int TCPServer::game(int newSocket) {
     // Definir el tablero
