@@ -13,13 +13,13 @@
 class TCPServer
 {
 private:
+    static int gameCounter;
     int serverSocket;
     struct sockaddr_in address;
     int opt = 1;
     int addrlen = sizeof(address);
 
 public:
-    // Declaración de la función game
     int game(int newSocket);
     bool checkFourInARow(char board[6][7], char symbol);
 
@@ -32,98 +32,75 @@ public:
             exit(EXIT_FAILURE);
         }
 
-        // Configurar opciones del socket
+        // Configurar socket para reutilizar dirección y puerto
         if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt)))
         {
             perror("Error al configurar el socket del servidor");
             exit(EXIT_FAILURE);
         }
 
+        // Configurar estructura de dirección del servidor
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = INADDR_ANY;
         address.sin_port = htons(port);
 
-        // Enlazar el socket a la dirección y puerto
+        // Enlazar socket con la dirección y puerto especificados
         if (bind(serverSocket, (struct sockaddr *)&address, sizeof(address)) < 0)
         {
             perror("Error al enlazar el socket del servidor");
             exit(EXIT_FAILURE);
         }
 
-        // Escuchar conexiones entrantes
+        // Configurar socket para escuchar conexiones entrantes
         if (listen(serverSocket, 3) < 0)
         {
             perror("Error al escuchar conexiones entrantes");
             exit(EXIT_FAILURE);
         }
-    } // fin TCPServer
+    }
 
-    // Maneja la comunicacion con un cliente
     void handleClient(int clientSocket)
     {
-        char buffer[BUFFER_SIZE] = {0};
-        int bytesRead;
+        // Manejar la conexión del cliente
+        game(clientSocket);
+        close(clientSocket);
+    }
 
-        // Recibir y enviar mensajes
-        while ((bytesRead = read(clientSocket, buffer, BUFFER_SIZE)) > 0)
-        {
-            std::cout << "Mensaje recibido: " << buffer << std::endl;
-            send(clientSocket, buffer, bytesRead, 0);
-            memset(buffer, 0, BUFFER_SIZE);
-        }
-
-        if (bytesRead == 0)
-        {
-            std::cout << "Cliente desconectado\n";
-        }
-        else if (bytesRead < 0)
-        {
-            perror("Error al leer del cliente");
-        }
-
-        // close(clientSocket);
-    } // fin handleClient
-
-    // Queda a la escucha
     void acceptConnections()
     {
+        // Aceptar conexiones de clientes en un bucle infinito
         while (true)
         {
             int newSocket;
             struct sockaddr_in clientAddress;
             socklen_t clientAddrlen = sizeof(clientAddress);
 
-            // Aceptar la conexion entrante
+            // Aceptar una nueva conexión
             if ((newSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &clientAddrlen)) < 0)
             {
                 perror("Error al aceptar la conexion");
                 exit(EXIT_FAILURE);
             }
-            std::cout << "Conexion aceptada\n";
-
-            // Manejar la conexion con un nuevo hilo o proceso (Diego)
+            
+            std::cout << "Juego #" << ++gameCounter << " iniciado\n"; // Indicar el número del juego
+            // Crear un hilo para manejar la conexión del cliente
             std::thread(&TCPServer::handleClient, this, newSocket).detach();
-
-            // Lógica del juego
-            game(newSocket);
-
-            close(newSocket); // Cerrar el socket para esta conexión
-
-            std::cout << "socket cerrado\n";
         }
-    } // Fin acceptConnections()
+    }
 
-    // cerrar conexión
     ~TCPServer()
     {
+        // Cerrar el socket del servidor
         close(serverSocket);
     }
 };
 
+int TCPServer::gameCounter = 0;
+
+// busca si hay un ganador, devuelve TRUE o FALSE
 bool TCPServer::checkFourInARow(char board[6][7], char symbol)
 {
-    std::cout << "Checking for " << symbol << std::endl;
-    // Verificar horizontalmente
+    // Comprobar si hay cuatro fichas consecutivas en una fila
     for (int i = 0; i < 6; ++i)
     {
         for (int j = 0; j < 4; ++j)
@@ -135,8 +112,8 @@ bool TCPServer::checkFourInARow(char board[6][7], char symbol)
         }
     }
 
-    // Verificar verticalmente
-    for (int i = 0; i < 4; ++i)
+    // Comprobar si hay cuatro fichas consecutivas en una columna
+    for (int i = 0; i < 3; ++i)
     {
         for (int j = 0; j < 7; ++j)
         {
@@ -147,7 +124,7 @@ bool TCPServer::checkFourInARow(char board[6][7], char symbol)
         }
     }
 
-    // Verificar diagonales (de izquierda a derecha)
+    // Comprobar si hay cuatro fichas consecutivas en una diagonal ascendente
     for (int i = 0; i < 3; ++i)
     {
         for (int j = 0; j < 4; ++j)
@@ -159,12 +136,12 @@ bool TCPServer::checkFourInARow(char board[6][7], char symbol)
         }
     }
 
-    // Verificar diagonales (de derecha a izquierda)
-    for (int i = 0; i < 3; ++i)
+    // Comprobar si hay cuatro fichas consecutivas en una diagonal descendente
+    for (int i = 3; i < 6; ++i)
     {
-        for (int j = 3; j < 7; ++j)
+        for (int j = 0; j < 4; ++j)
         {
-            if (board[i][j] == symbol && board[i + 1][j - 1] == symbol && board[i + 2][j - 2] == symbol && board[i + 3][j - 3] == symbol)
+            if (board[i][j] == symbol && board[i - 1][j + 1] == symbol && board[i - 2][j + 2] == symbol && board[i - 3][j + 3] == symbol)
             {
                 return true;
             }
@@ -175,8 +152,10 @@ bool TCPServer::checkFourInARow(char board[6][7], char symbol)
 }
 
 int TCPServer::game(int newSocket)
-{
-    // Definir el tablero
+{   
+    // Incrementar el contador de juegos
+    int currentGame = gameCounter;
+    // Inicializar el tablero de juego vacio
     char board[6][7] = {{' ', ' ', ' ', ' ', ' ', ' ', ' '},
                         {' ', ' ', ' ', ' ', ' ', ' ', ' '},
                         {' ', ' ', ' ', ' ', ' ', ' ', ' '},
@@ -184,24 +163,26 @@ int TCPServer::game(int newSocket)
                         {' ', ' ', ' ', ' ', ' ', ' ', ' '},
                         {' ', ' ', ' ', ' ', ' ', ' ', ' '}};
 
-    // Elección aleatoria para definir quién inicia
-    srand(time(0)); // Inicializar la semilla aleatoria
+    // Determinar quien inicia el juego
+    srand(time(0));
     bool serverStarts = rand() % 2;
-    // Si el servidor inicia, enviar el número de columna aleatorio al cliente
+
+    // Si el servidor comienza, realiza su movimiento y envía la columna al cliente
     if (serverStarts)
     {
-        std::cout << "El servidor inicia\n";
-        // Lógica para que el servidor haga el primer movimiento
-        int serverColumn1 = rand() % 7;
+        std::cout << "Juego #" << currentGame << ": El servidor inicia\n";
+        int serverColumn1;
+        // Elegir una columna aleatoria para el primer movimiento del servidor
         while (true)
         {
             serverColumn1 = rand() % 7;
             bool placed = false;
+            // Colocar la ficha del servidor en la columna elegida si está vacía
             for (int i = 5; i >= 0; --i)
             {
                 if (board[i][serverColumn1] == ' ')
                 {
-                    board[i][serverColumn1] = 'O'; // 'O' representa la ficha del servidor
+                    board[i][serverColumn1] = 'S';
                     placed = true;
                     break;
                 }
@@ -210,49 +191,54 @@ int TCPServer::game(int newSocket)
                 break;
         }
 
-        // Enviar el movimiento del servidor de vuelta al cliente
+        // Enviar la columna al cliente
         char response[3];
         snprintf(response, sizeof(response), "%d", serverColumn1);
         send(newSocket, response, strlen(response), 0);
-        std::cout << "Movimiento del servidor en columna: " << serverColumn1 + 1 << std::endl;
+        std::cout << "Juego #" << currentGame << ": Movimiento del servidor en columna: " << serverColumn1 + 1 << std::endl;    
+        if (checkFourInARow(board, 'S'))
+        {
+            std::cout << "Juego #" << currentGame << ": Servidor ha ganado\n";
+            send(newSocket, "7", 1, 0);
+            return 0;
+        }
     }
     else
     {
-        std::cout << "El cliente inicia\n";
-        // Enviar un mensaje con un 8 para que el cliente inicie
+        // Si el cliente comienza, enviar el código "8" al cliente para indicarlo
+        std::cout << "Juego #" << currentGame << ": El cliente inicia\n";
         send(newSocket, "8", 1, 0);
     }
 
-    // Bucle principal para interactuar con el cliente
+    // Bucle principal del juego
     while (true)
     {
-        char buffer[BUFFER_SIZE] = {0};                        // Inicializar el buffer
-        int valread = recv(newSocket, buffer, BUFFER_SIZE, 0); // Recibir mensaje del cliente
+        char buffer[BUFFER_SIZE] = {0};
+        // Recibir la columna seleccionada por el cliente
+        int valread = recv(newSocket, buffer, BUFFER_SIZE, 0);
         if (valread > 0)
         {
             int clientColumn = atoi(buffer);
-            std::cout << "Movimiento del cliente en columna: " << clientColumn + 1 << std::endl;
-
-            // Colocar la ficha del cliente en la columna seleccionada solo si no está llena
+            std::cout << "Juego #" << currentGame << ": Movimiento del cliente en columna: " << clientColumn + 1 << std::endl;       
+            // Colocar la ficha del cliente en la columna seleccionada
             for (int i = 5; i >= 0; --i)
             {
                 if (board[i][clientColumn] == ' ')
                 {
-                    board[i][clientColumn] = 'X'; // 'X' representa la ficha del cliente
+                    board[i][clientColumn] = 'C';
                     break;
                 }
             }
 
-            // comprobar si x gana
-            bool Xwin = checkFourInARow(board, 'X');
-            if (Xwin)
-            {
-                std::cout << "Cliente ha ganado" << std::endl;
+            // Verificar si el cliente ganó después de su movimiento
+            if (checkFourInARow(board, 'C'))
+            {   
+                std::cout << "Juego #" << currentGame << ": Cliente ha ganado" << std::endl;
                 send(newSocket, "9", 1, 0);
-                return 0; // Salir del juego
+                return 0;
             }
 
-            // Procesar el movimiento del servidor
+            // Realizar el movimiento del servidor
             int serverColumn;
             while (true)
             {
@@ -262,7 +248,7 @@ int TCPServer::game(int newSocket)
                 {
                     if (board[i][serverColumn] == ' ')
                     {
-                        board[i][serverColumn] = 'O'; // 'O' representa la ficha del servidor
+                        board[i][serverColumn] = 'S';
                         placed = true;
                         break;
                     }
@@ -271,54 +257,54 @@ int TCPServer::game(int newSocket)
                     break;
             }
 
-            // comprobar si o gana
-            bool Owin = checkFourInARow(board, 'O');
-            if (Owin)
+            // Verificar si el servidor ganó después de su movimiento
+            if (checkFourInARow(board, 'S'))
             {
-                std::cout << "Servidor ha ganado" << std::endl;
+            std::cout << "Juego #" << currentGame << ": Servidor ha ganado\n";
                 send(newSocket, "7", 1, 0);
-                return 0; // Salir del juego
+                return 0;
             }
 
-            // Enviar el movimiento del servidor de vuelta al cliente
+            // Enviar la columna seleccionada por el servidor al cliente
             char response[3];
             snprintf(response, sizeof(response), "%d", serverColumn);
             send(newSocket, response, strlen(response), 0);
-            std::cout << "Movimiento del servidor en columna: " << serverColumn + 1 << std::endl;
+            std::cout << "Juego #" << currentGame << ": Movimiento del servidor en columna: " << serverColumn + 1 << std::endl;  
         }
         else if (valread == 0)
         {
-            // El cliente ha cerrado la conexión
-            std::cout << "Cliente desconectado\n";
+            // Si no se recibe ninguna información del cliente, el juego termina
+            std::cout << "Juego #" << currentGame<< "Terminado" << std::endl;
             break;
         }
         else
         {
-            // Error al recibir el mensaje
+            // Si hay un error al recibir el mensaje del cliente, se muestra un mensaje de error
             perror("Error al recibir el mensaje del cliente");
             break;
         }
     }
-    // Lógica del juego
     return 0;
 }
 
-// Esto ejecuta el servidor
-int main(int argc, char *argv[]) //   ./ servidor <puerto>
+int main(int argc, char *argv[])
 {
-    // Si no hay la cantidad de argumentos correcto retornar error
+    // Verificar si se proporciona el puerto como argumento de línea de comandos
     if (argc != 2)
     {
         std::cerr << "Uso: " << argv[0] << " <puerto>\n";
         return EXIT_FAILURE;
     }
 
-    int port = std::atoi(argv[1]); // Convertir <puerto> en integer
+    // Obtener el puerto del argumento de línea de comandos
+    int port = std::atoi(argv[1]);
+    // Crear una instancia de TCPServer
+    TCPServer server(port);
+    std::cout << "Esperando conexiones...\n";
 
-    TCPServer server(port); // Abrir conexion
-    std::cout << "Conexión abierta\n";
-
+    // Esperar conexiones entrantes
     server.acceptConnections();
 
     return 0;
 }
+

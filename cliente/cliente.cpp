@@ -4,144 +4,187 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <limits>
 
 #define BUFFER_SIZE 1024
 
-class TCPClient {
+class TCPClient
+{
 private:
     int clientSocket;
     struct sockaddr_in serv_addr;
 
 public:
-    TCPClient(const char* serverIP, int serverPort) {
-        if ((clientSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-            std::cerr << "Error al crear el socket del cliente" << std::endl;
+    TCPClient(const char *serverIP, int serverPort)
+    {
+        // Crear socket del cliente
+        if ((clientSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        {
+            perror("Error al crear el socket del cliente");
             exit(EXIT_FAILURE);
         }
 
+        // Configurar la estructura de dirección del servidor
         serv_addr.sin_family = AF_INET;
         serv_addr.sin_port = htons(serverPort);
 
-        if (inet_pton(AF_INET, serverIP, &serv_addr.sin_addr) <= 0) {
-            std::cerr << "Dirección no válida/soportada" << std::endl;
+        // Convertir la dirección IP de texto a binario
+        if (inet_pton(AF_INET, serverIP, &serv_addr.sin_addr) <= 0)
+        {
+            perror("Dirección IP invalida o no soportada");
             exit(EXIT_FAILURE);
         }
 
-        if (connect(clientSocket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-            std::cerr << "Error al conectar al servidor" << std::endl;
+        // Conectar al servidor
+        if (connect(clientSocket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+        {
+            perror("Error en la conexión con el servidor");
             exit(EXIT_FAILURE);
         }
-        std::cout << "Conectado al servidor" << std::endl;
     }
 
-    void sendMessage(const char* message) {
-        send(clientSocket, message, strlen(message), 0);
+    void printBoard(char board[6][7])
+    {
+        // Imprimir el tablero de juego
+        std::cout << "_____________" << std::endl;
+        for (int i = 0; i < 6; ++i)
+        {
+            for (int j = 0; j < 7; ++j)
+            {
+                std::cout << board[i][j] << " ";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << "1|2|3|4|5|6|7" << std::endl;
     }
 
-    void receive(char* buffer, int bufferSize) {
-        recv(clientSocket, buffer, bufferSize, 0);
-    }
+    void play()
+    {
+        // Inicializar buffer y tablero de juego
+        char buffer[BUFFER_SIZE] = {0};
+        char board[6][7] = {{' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                            {' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                            {' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                            {' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                            {' ', ' ', ' ', ' ', ' ', ' ', ' '},
+                            {' ', ' ', ' ', ' ', ' ', ' ', ' '}};
 
-    ~TCPClient() {
-        close(clientSocket);
+        // Recibir el primer mensaje del servidor
+        recv(clientSocket, buffer, BUFFER_SIZE, 0);
+
+        // Verificar si el cliente comienza el juego
+        if (strcmp(buffer, "8") == 0)
+        {
+            std::cout << "Tú empiezas!\n";
+            printBoard(board);
+        }
+        else
+        {
+            // El servidor ha comenzado el juego
+            int col = atoi(buffer);
+            for (int i = 5; i >= 0; --i)
+            {
+                if (board[i][col] == ' ')
+                {
+                    board[i][col] = 'S';
+                    break;
+                }
+            }
+            std::cout << "El servidor inicia el juego. Movimiento en columna: " << col + 1 << std::endl;
+            printBoard(board);
+        }
+
+        while (true)
+        {
+            int col;
+            bool validInput = false;
+
+            // Validar la entrada del usuario
+            while (!validInput)
+            {
+                std::cout << "Ingresa el número de columna (1-7): ";
+                std::cin >> col;
+
+                if (std::cin.fail() || col < 1 || col > 7)
+                {
+                    std::cin.clear();
+                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                    std::cout << "Entrada inválida. Por favor ingresa un número del 1 al 7.\n";
+                }
+                else
+                {
+                    validInput = true;
+                }
+            }
+
+            col -= 1; // Convertir a índice basado en 0
+
+            // Colocar la ficha del cliente en el tablero
+            for (int i = 5; i >= 0; --i)
+            {
+                if (board[i][col] == ' ')
+                {
+                    board[i][col] = 'C';
+                    break;
+                }
+            }
+
+            // Enviar movimiento del cliente al servidor
+            char message[3];
+            snprintf(message, sizeof(message), "%d", col);
+            send(clientSocket, message, strlen(message), 0);
+
+            // Recibir respuesta del servidor
+            recv(clientSocket, buffer, BUFFER_SIZE, 0);
+            if (strcmp(buffer, "9") == 0)
+            {
+                // El cliente ha ganado
+                printBoard(board);
+                std::cout << "Ganaste!\n";
+                break;
+            }
+            else if (strcmp(buffer, "7") == 0)
+            {   
+                // El servidor ha ganado
+                printBoard(board);
+                std::cout << "Perdiste!\n";
+                break;
+            }
+            else
+            {
+                // El servidor ha realizado un movimiento
+                int serverCol = atoi(buffer);
+                for (int i = 5; i >= 0; --i)
+                {
+                    if (board[i][serverCol] == ' ')
+                    {
+                        board[i][serverCol] = 'S';
+                        break;
+                    }
+                }
+                std::cout << "Movimiento del servidor en columna: " << serverCol + 1 << std::endl;
+                printBoard(board);
+            }
+        }
+        close(clientSocket); // Cerrar el socket del cliente
     }
 };
 
-void printBoard(char board[6][7]) {
-    for (int i = 0; i < 6; ++i) {
-        for (int j = 0; j < 7; ++j) {
-            std::cout << board[i][j] << " ";
-        }
-        std::cout << std::endl;
-    }
-}
-
-
-
-int main(int argc, char const *argv[]) {
-    if (argc != 3) {
-        std::cerr << "Uso: " << argv[0] << " <dirección IP del servidor> <puerto>" << std::endl;
+int main(int argc, char *argv[])
+{
+    // Verificar si se han proporcionado los argumentos necesarios
+    if (argc != 3)
+    {
+        std::cerr << "Uso: " << argv[0] << " <dirección IP del servidor> <puerto>\n";
         return EXIT_FAILURE;
     }
 
-    TCPClient client(argv[1], atoi(argv[2]));
+    const char *serverIP = argv[1];
+    int serverPort = std::atoi(argv[2]);
 
-
-    // Definir el tablero
-    char board[6][7] = {{' ', ' ', ' ', ' ', ' ', ' ', ' '},
-                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
-                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
-                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
-                        {' ', ' ', ' ', ' ', ' ', ' ', ' '},
-                        {' ', ' ', ' ', ' ', ' ', ' ', ' '}};
-                        
-    // Bucle principal del juego
-    while (true) {
-        // Recibir el movimiento del servidor
-        char buffer[BUFFER_SIZE] = {0};
-        client.receive(buffer, BUFFER_SIZE);
-        int serverColumn = atoi(buffer);   
-
-
-        if (serverColumn == 8) {
-            std::cout << "Tu comienzas la partida" << std::endl;
-        } else if (serverColumn == 9) {
-            std::cout << "¡Ganaste!" << std::endl;
-            break;
-        } else if (serverColumn == 7) {
-            std::cout << "¡Perdiste!" << std::endl;
-            break;
-        }else{
-            std::cout << "Movimiento del servidor en columna: " << serverColumn + 1 << std::endl;
-                    // Colocar la ficha del servidor en la columna seleccionada solo si no está llena
-            for (int i = 5; i >= 0; --i) {
-                if (board[i][serverColumn] == ' ') {
-                    board[i][serverColumn] = 'O'; // 'O' representa la ficha del servidor
-                    break;
-                }
-            }// Mostrar el tablero actualizado
-            printBoard(board);  
-        }
-
-int column;
-bool validInput = false;
-
-// Solicitar al usuario que ingrese su movimiento
-do {
-    std::cout << "Ingrese el número de columna para colocar su ficha (1-7): ";
-    if (std::cin >> column) {
-        // Verificar si la entrada es un número y está en el rango válido
-        if (column >= 1 && column <= 7) {
-            validInput = true;
-        } else {
-            std::cout << "Número de columna inválido. Debe estar entre 1 y 7." << std::endl;
-        }
-    } else {
-        // Limpiar el buffer de entrada
-        std::cin.clear();
-        while (std::cin.get() != '\n') continue; // Descartar caracteres adicionales en el buffer
-        std::cout << "Entrada inválida. Debe ingresar un número." << std::endl;
-
-    }
-} while (!validInput);
-
-column--; // Ajustar el índice de la columna
-
-
-
-        // Colocar la ficha del jugador en la columna seleccionada solo si no está llena
-        for (int i = 5; i >= 0; --i) {
-            if (board[i][column] == ' ') {
-                board[i][column] = 'X'; // 'X' representa la ficha del jugador
-                break;
-            }
-        }
-
-        // Enviar el movimiento al servidor
-        char message[3];
-        snprintf(message, sizeof(message), "%d", column);
-        client.sendMessage(message);
-    }
+    // Crear una instancia de TCPClient y comenzar a jugar
+    TCPClient client(serverIP, serverPort);
+    client.play();
 
     return 0;
 }
